@@ -1,0 +1,66 @@
+#!/usr/bin/env bash
+# Make `claude` on PATH resolve to the CLI the /claude-code volume holds.
+#
+# Claude Code's native installer keeps each version as a file under
+# ~/.local/share/claude/versions/<version> and points the launcher,
+# ~/.local/bin/claude, at one of them; its updater adds a version and moves
+# the link. In the workbench ~/.local/share/claude is a link to /claude-code,
+# a named volume, so every version it downloads lands on the volume. The
+# launcher stays in the image's layer, so after a rebuild it is gone (or
+# points at what the image last had). This puts it back:
+#
+#   - /claude-code/.sdd-held names a version (claude-hold): link that one;
+#   - else link the newest version the volume holds;
+#   - else the volume is empty (a first start): run the installer.
+#
+# Idempotent and quick when nothing is missing. Prints what it did.
+set -euo pipefail
+
+VOLUME=/claude-code
+VERSIONS="$VOLUME/versions"
+LAUNCHER="$HOME/.local/bin/claude"
+SHARE="$HOME/.local/share/claude"
+INSTALLER_URL="${SDD_CLAUDE_INSTALLER_URL:-https://claude.ai/install.sh}"
+
+mkdir -p "$HOME/.local/bin" "$HOME/.local/share"
+# The image links ~/.local/share/claude to the volume; a home directory that
+# is itself a volume (or was rebuilt by hand) may have lost the link.
+if [ ! -L "$SHARE" ]; then
+  if [ -d "$SHARE" ] && [ -z "$(ls -A "$SHARE" 2>/dev/null)" ]; then rmdir "$SHARE"; fi
+  if [ ! -e "$SHARE" ]; then ln -s "$VOLUME" "$SHARE"; fi
+fi
+
+newest() {
+  [ -d "$VERSIONS" ] || return 0
+  ls -1 "$VERSIONS" 2>/dev/null | grep -E '^[0-9]+\.[0-9]+\.[0-9]+' | sort -V | tail -n 1
+}
+
+target=""
+if [ -s "$VOLUME/.sdd-held" ]; then
+  held="$(tr -d '[:space:]' < "$VOLUME/.sdd-held")"
+  if [ -x "$VERSIONS/$held" ]; then
+    target="$held"
+  else
+    echo "claude-code-ensure: the held version $held is not on the volume; installing it"
+    if curl -fsSL "$INSTALLER_URL" | bash -s -- "$held"; then target="$held"; fi
+  fi
+fi
+[ -n "$target" ] || target="$(newest)"
+
+if [ -z "$target" ]; then
+  echo "claude-code-ensure: the volume holds no Claude Code; installing the latest"
+  curl -fsSL "$INSTALLER_URL" | bash
+  target="$(newest)"
+  if [ -z "$target" ]; then
+    echo "claude-code-ensure: the installer ran, and still no version is on the volume" >&2
+    exit 1
+  fi
+fi
+
+want="$SHARE/versions/$target"
+if [ "$(readlink "$LAUNCHER" 2>/dev/null || true)" != "$want" ]; then
+  ln -sfn "$want" "$LAUNCHER"
+  echo "claude-code-ensure: claude -> $target"
+else
+  echo "claude-code-ensure: claude is $target"
+fi

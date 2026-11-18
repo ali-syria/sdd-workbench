@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# Install (or refresh) the per-worktree-port Plannotator wrapper over the real
+# binary. Idempotent: a marker in the wrapper tells it apart from the real
+# binary, which is moved aside to plannotator.real. Run at image build, and
+# again after Plannotator updates itself (it would replace the wrapper).
+set -e
+BIN_DIR="$HOME/.local/bin"
+SRC=/usr/local/share/sdd-workbench/plannotator-wrapper.sh
+MARKER="plannotator-wrapper:per-worktree-port"
+mkdir -p "$BIN_DIR"
+if [ -f "$BIN_DIR/plannotator" ] && ! grep -q "$MARKER" "$BIN_DIR/plannotator" 2>/dev/null; then
+  mv "$BIN_DIR/plannotator" "$BIN_DIR/plannotator.real"
+fi
+install -m 0755 "$SRC" "$BIN_DIR/plannotator"
+echo "sdd-workbench: Plannotator wrapper at $BIN_DIR/plannotator (the real binary: plannotator.real)"

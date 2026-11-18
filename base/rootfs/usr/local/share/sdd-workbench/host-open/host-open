@@ -1,0 +1,110 @@
+#!/usr/bin/env bash
+#
+# host-open — open a URL in the browser on the Mac from inside the devcontainer.
+#
+#   host-open <http(s)-url>
+#
+# Set as PLANNOTATOR_BROWSER (docker-compose.yml), so Plannotator runs it instead of trying
+# the in-container `xdg-open`. It works the same whether Claude runs in a VS Code dev container
+# terminal or in a plain terminal (Ghostty, iTerm) attached with `docker exec`.
+#
+# Why: the container sets PLANNOTATOR_REMOTE=1, and in remote mode Plannotator opens a browser only
+# through VS Code — its `$BROWSER` helper or the Plannotator extension's IPC registry. Outside VS Code
+# neither exists, so it printed the URL and opened nothing (for a plan review, run as a hook, nobody
+# even saw the URL).
+#
+# Tried in order, first success wins:
+#   1. `$BROWSER`, when it is an absolute path to an executable (VS Code's helper opens the link on
+#      the host) — VS Code sessions keep their old route;
+#   2. the Mac bridge — the launchd agent `macos/install.sh` sets up — at
+#      host.docker.internal:$HOST_OPEN_PORT (default 19876), sending the URL in an `X-Open-Url`
+#      header. The bridge only opens http(s)://localhost or 127.0.0.1 pages on a port within
+#      $HOST_OPEN_PORTS (default 20000-29999: all Plannotator asks for), so any other URL is not
+#      sent to it; it also checks the Host header and refuses browser requests, so this script
+#      always sends `Host: host.docker.internal:<port>`. The bridge answers with an
+#      `X-Host-Open-Policy` header; an agent without it is an older one that enforces less, and
+#      we say so;
+#   3. the Plannotator VS Code extension's IPC registry (~/.plannotator/vscode-ipc.json).
+#
+# Only http(s) URLs without whitespace or control characters are passed on. Exits 0 once a route
+# accepted the URL, 1 when none did (the URL, without its fragment, is printed to stderr), 2 for a
+# refused URL.
+
+set -uo pipefail
+
+url=${1:-}
+
+case $url in
+    http://* | https://*) ;;
+    *)
+        printf 'host-open: refusing %q: only http(s) URLs are opened\n' "$url" >&2
+        exit 2
+        ;;
+esac
+if [[ $url =~ [[:space:][:cntrl:]] ]] || ((${#url} > 4096)); then
+    printf 'host-open: refusing %q: whitespace, control characters or over 4096 characters\n' "$url" >&2
+    exit 2
+fi
+
+# 1. VS Code's browser helper. Never ourselves, or a BROWSER=host-open would loop.
+browser=${BROWSER:-}
+if [[ $browser == /* && -x $browser && $(readlink -f -- "$browser") != "$(readlink -f -- "$0")" ]]; then
+    "$browser" "$url" >/dev/null 2>&1 && exit 0
+fi
+
+# 2. The Mac bridge, for the localhost pages it is willing to open (the same rule it applies:
+#    localhost or 127.0.0.1, an explicit port inside HOST_OPEN_PORTS, never the bridge's own).
+#    The Host header is fixed, whatever HOST_OPEN_HOST addresses: the bridge accepts only its own
+#    names, which is what keeps a DNS-rebound web page out.
+port=${HOST_OPEN_PORT:-19876}
+host=${HOST_OPEN_HOST:-host.docker.internal}
+ports=${HOST_OPEN_PORTS:-20000-29999}
+local_page='^https?://(localhost|127\.0\.0\.1):([0-9]{1,5})(/[^[:space:][:cntrl:]]*)?$'
+in_policy=0
+if [[ $url =~ $local_page ]]; then
+    url_port=$((10#${BASH_REMATCH[2]}))
+    if [[ $ports =~ ^([0-9]+)-([0-9]+)$ ]] &&
+        ((url_port >= 10#${BASH_REMATCH[1]} && url_port <= 10#${BASH_REMATCH[2]} && url_port != 10#$port)); then
+        in_policy=1
+    fi
+fi
+status=''
+if ((in_policy)); then
+    reply=$(curl -sS -o /dev/null -D - --max-time 3 \
+        -H "Host: host.docker.internal:$port" -H "X-Open-Url: $url" "http://$host:$port/open" 2>/dev/null | tr -d '\r')
+    status=$(printf '%s\n' "$reply" | awk 'NR == 1 { print $2 }')
+    policy=$(printf '%s\n' "$reply" | awk 'tolower($0) ~ /^x-host-open-policy:/ { print $2 }')
+    status=${status:-nothing}
+    if [[ $status == 204 ]]; then
+        [[ ${policy:-0} =~ ^[0-9]+$ && ${policy:-0} -ge 3 ]] ||
+            printf 'host-open: the Mac agent opened it, but it does not report this version'"'"'s policy (localhost pages in a port range only): it is an older agent. Replace it: bash .devcontainer/host-open/macos/install.sh\n' >&2
+        exit 0
+    fi
+fi
+
+# 3. The Plannotator VS Code extension (the same lookup Plannotator does: longest workspace
+#    prefix of the current directory).
+registry=${PLANNOTATOR_DATA_DIR:-$HOME/.plannotator}/vscode-ipc.json
+if [[ -r $registry ]]; then
+    ipc_port=$(jq -r --arg cwd "$PWD" '
+        [to_entries[] | select(.key as $w | $cwd | startswith($w))]
+        | max_by(.key | length) | .value // empty' "$registry" 2>/dev/null)
+    if [[ $ipc_port =~ ^[0-9]+$ ]] &&
+        curl -fsS -o /dev/null --max-time 2 --get --data-urlencode "url=$url" \
+            "http://127.0.0.1:$ipc_port/open" 2>/dev/null; then
+        exit 0
+    fi
+fi
+
+# Never the fragment: Plannotator share links carry their decryption key there.
+shown=${url%%#*}
+if [[ -z $status ]]; then
+    printf 'host-open: could not open %s on the host: the Mac bridge only opens localhost pages on a port in %s.\n' "$shown" "$ports" >&2
+elif [[ $status == 429 ]]; then
+    printf 'host-open: could not open %s on the host: the Mac bridge allows one page every few seconds; try again.\n' "$shown" >&2
+else
+    printf 'host-open: could not open %s on the host (bridge on %s:%s answered %s).\n' \
+        "$shown" "$host" "$port" "${status:-nothing}" >&2
+    printf 'host-open: install the Mac bridge with .devcontainer/host-open/macos/install.sh, or open the URL by hand.\n' >&2
+fi
+exit 1

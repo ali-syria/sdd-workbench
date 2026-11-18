@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# Undo `claude-hold`: forget the held version, switch the CLI's own updates
+# back on, and update now. Idempotent; prints what it did.
+set -euo pipefail
+: "${CLAUDE_CONFIG_DIR:=$HOME/.claude}"
+SETTINGS="$CLAUDE_CONFIG_DIR/settings.json"
+rm -f /claude-code/.sdd-held
+python3 - "$SETTINGS" <<'PY'
+import json, os, sys
+path = sys.argv[1]
+if not os.path.exists(path):
+    print("no user settings; updates are on"); sys.exit(0)
+with open(path) as f:
+    data = json.load(f)
+env = data.get("env") or {}
+if env.pop("DISABLE_AUTOUPDATER", None) is None:
+    print("updates were already on")
+else:
+    if not env:
+        data.pop("env", None)
+    with open(path, "w") as f:
+        json.dump(data, f, indent=2)
+        f.write("\n")
+    print("updates switched back on in " + path)
+PY
+claude update || echo "claude-release: the update did not run now; the CLI updates itself on its next start" >&2
+/usr/local/bin/claude-code-ensure
+echo "claude-release: Claude Code is $(claude --version)"

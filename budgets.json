@@ -1,0 +1,8 @@
+{
+  "$comment": "Size budgets in MB, checked by test/run.sh: the base's whole image, and what each add-on adds to it. Raised only on purpose, in a commit that says why. The base measured 1303 MB on arm64 (2026-11-19), 236 MB of it Plannotator's single binary. phone-tools measured 568 MB: Java 17's runtime and Maestro's CLI.",
+  "base": 1400,
+  "php": 300,
+  "electron-display": 300,
+  "phone-tools": 650,
+  "browsers-extra": 600
+}

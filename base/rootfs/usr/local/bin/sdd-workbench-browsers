@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# Put a Chromium on the /playwright-browsers volume, for the framework's own
+# mockup rendering and design fidelity, at the Playwright version the image
+# names. A client codebase that pins another Playwright installs its own
+# revision beside it (one directory per revision), so the two never clash.
+# Quick when the browser is already there.
+set -euo pipefail
+: "${PLAYWRIGHT_BROWSERS_PATH:=/playwright-browsers}"
+: "${SDD_PLAYWRIGHT_VERSION:?the image sets it}"
+LOCK="$PLAYWRIGHT_BROWSERS_PATH/.sdd-workbench-$SDD_PLAYWRIGHT_VERSION"
+if [ -f "$LOCK" ]; then
+  echo "sdd-workbench-browsers: Chromium for Playwright $SDD_PLAYWRIGHT_VERSION is there"
+  exit 0
+fi
+npx --yes "playwright@$SDD_PLAYWRIGHT_VERSION" install chromium
+touch "$LOCK"
+echo "sdd-workbench-browsers: installed Chromium for Playwright $SDD_PLAYWRIGHT_VERSION"

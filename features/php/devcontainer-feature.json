@@ -1,0 +1,25 @@
+{
+  "id": "php",
+  "version": "1.0.0",
+  "name": "PHP for the SDD workbench",
+  "description": "PHP CLI from the Sury repository with the extensions the Laravel scaffold uses, Composer, PCOV, and Xdebug installed but off (XDEBUG_MODE turns it on for one command).",
+  "documentationURL": "https://github.com/ali-syria/sdd-workbench/tree/main/features/php",
+  "options": {
+    "version": {
+      "type": "string",
+      "proposals": ["8.5", "8.4", "8.3"],
+      "default": "8.5",
+      "description": "PHP's major.minor"
+    },
+    "xdebug": {
+      "type": "string",
+      "enum": ["off", "debug", "coverage", "develop"],
+      "default": "off",
+      "description": "xdebug.mode in the dev container. Off by default: it slows every test run, and coverage comes from PCOV"
+    }
+  },
+  "containerEnv": {
+    "COMPOSER_HOME": "/home/dev/.composer"
+  },
+  "installsAfter": []
+}

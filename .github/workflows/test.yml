@@ -1,0 +1,40 @@
+name: test
+
+# T5 on both architectures for every change: the base builds, each add-on
+# installs on it, every tool answers, and each image stays inside its budget.
+# Then the dev-container CLI's own feature tests, which install each add-on
+# the way a project's dev container will.
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  t5:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            platform: linux/amd64
+          - runner: ubuntu-24.04-arm
+            platform: linux/arm64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: T5
+        run: test/run.sh --platform ${{ matrix.platform }}
+
+  features:
+    runs-on: ubuntu-24.04
+    needs: t5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the base for the feature tests
+        run: docker build -t sdd-workbench/base:ci base
+      - name: devcontainer features test
+        run: |
+          npm install -g @devcontainers/cli@0.80.0
+          for f in php electron-display phone-tools browsers-extra; do
+            devcontainer features test --features "$f" --base-image sdd-workbench/base:ci --skip-scenarios .
+          done

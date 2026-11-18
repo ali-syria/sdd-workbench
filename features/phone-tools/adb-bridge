@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+# adb-bridge: forward the container's 127.0.0.1:5037 to the host's adb server.
+#
+#   adb-bridge ensure   start it unless it runs (what `adb` runs first)
+#   adb-bridge status   say whether it runs, and what the host's server lists
+#   adb-bridge stop
+#
+# The host is ADB_BRIDGE_HOST (default host.docker.internal), its port
+# ADB_BRIDGE_PORT (default 5037). The host's server stays bound to the host's
+# loopback; nothing is opened to the network.
+set -u
+HOST="${ADB_BRIDGE_HOST:-host.docker.internal}"
+PORT="${ADB_BRIDGE_PORT:-5037}"
+PIDFILE="${TMPDIR:-/tmp}/adb-bridge.pid"
+
+running() { [ -f "$PIDFILE" ] && kill -0 "$(cat "$PIDFILE")" 2>/dev/null; }
+
+case "${1:-status}" in
+  ensure)
+    running && exit 0
+    if (exec 3<>/dev/tcp/127.0.0.1/5037) 2>/dev/null; then
+      echo "adb-bridge: something already listens on 127.0.0.1:5037 in the container" >&2
+      exit 0
+    fi
+    nohup socat TCP-LISTEN:5037,bind=127.0.0.1,fork,reuseaddr "TCP:${HOST}:${PORT}" \
+      >/dev/null 2>&1 &
+    echo $! > "$PIDFILE"
+    for _ in 1 2 3 4 5 6 7 8 9 10; do
+      (exec 3<>/dev/tcp/127.0.0.1/5037) 2>/dev/null && break
+      sleep 0.1
+    done
+    ;;
+  status)
+    if running; then echo "adb-bridge: running (pid $(cat "$PIDFILE")) -> ${HOST}:${PORT}"; else echo "adb-bridge: not running"; fi
+    if (exec 3<>"/dev/tcp/${HOST}/${PORT}") 2>/dev/null; then
+      echo "adb-bridge: the host's adb server answers on ${HOST}:${PORT}"
+    else
+      echo "adb-bridge: no adb server answers on ${HOST}:${PORT}: start the emulator, or run \`adb start-server\` on your Mac" >&2
+      exit 1
+    fi
+    ;;
+  stop)
+    running && kill "$(cat "$PIDFILE")" && rm -f "$PIDFILE"
+    ;;
+  *) echo "usage: adb-bridge ensure|status|stop" >&2; exit 2 ;;
+esac

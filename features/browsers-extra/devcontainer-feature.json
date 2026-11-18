@@ -1,0 +1,8 @@
+{
+  "id": "browsers-extra",
+  "version": "1.0.0",
+  "name": "Firefox and WebKit libraries for the SDD workbench",
+  "description": "The runtime libraries Playwright's Firefox and WebKit need, for a website that must prove itself in three browsers. The browsers themselves install into /playwright-browsers with the project's own Playwright.",
+  "documentationURL": "https://github.com/ali-syria/sdd-workbench/tree/main/features/browsers-extra",
+  "options": {}
+}

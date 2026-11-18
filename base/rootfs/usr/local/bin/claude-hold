@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# Hold Claude Code at one version, until `claude-release`:
+#
+#   claude-hold 2.1.325
+#
+# For when a release breaks something the SDD loop relies on, and the fix in
+# the orchestrator has not landed yet. It installs that version on the
+# /claude-code volume, records it in /claude-code/.sdd-held (so every start
+# links that one, claude-code-ensure), and switches the CLI's own updates off
+# in the user settings of $CLAUDE_CONFIG_DIR. Idempotent; prints what it did.
+set -euo pipefail
+version="${1:-}"
+if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+  echo "usage: claude-hold <version>   (for example: claude-hold 2.1.325)" >&2
+  exit 2
+fi
+: "${CLAUDE_CONFIG_DIR:=$HOME/.claude}"
+SETTINGS="$CLAUDE_CONFIG_DIR/settings.json"
+
+printf '%s\n' "$version" > /claude-code/.sdd-held
+/usr/local/bin/claude-code-ensure
+if [ "$(claude --version 2>/dev/null | grep -oE '^[0-9]+\.[0-9]+\.[0-9]+' || true)" != "$version" ]; then
+  claude install "$version"
+  /usr/local/bin/claude-code-ensure
+fi
+
+python3 - "$SETTINGS" <<'PY'
+import json, os, shutil, sys
+path = sys.argv[1]
+data = {}
+if os.path.exists(path):
+    shutil.copyfile(path, path + ".before-claude-hold")
+    with open(path) as f:
+        data = json.load(f)
+env = data.setdefault("env", {})
+before = env.get("DISABLE_AUTOUPDATER")
+env["DISABLE_AUTOUPDATER"] = "1"
+os.makedirs(os.path.dirname(path), exist_ok=True)
+with open(path, "w") as f:
+    json.dump(data, f, indent=2)
+    f.write("\n")
+print("updates were already off" if before == "1" else "updates switched off in " + path)
+PY
+echo "claude-hold: Claude Code is held at $(claude --version)"

@@ -1,0 +1,11 @@
+{
+  "id": "electron-display",
+  "version": "1.0.0",
+  "name": "Electron's display for the SDD workbench",
+  "description": "Xvfb and the libraries Electron needs to start with no screen (GTK 3, NSS, ALSA, GBM, D-Bus, fonts), so Playwright drives a desktop app in the container (spike S6: Electron 45 under xvfb-run on arm64).",
+  "documentationURL": "https://github.com/ali-syria/sdd-workbench/tree/main/features/electron-display",
+  "options": {},
+  "containerEnv": {
+    "ELECTRON_CACHE": "/home/dev/.cache/electron"
+  }
+}

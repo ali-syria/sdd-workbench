@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# The workbench's entrypoint: make the container ready for the agents, then
+# run what it was asked to run (`sleep infinity` by default).
+#
+#   1. Claude Code on its volume (claude-code-ensure): installed on the
+#      first start, re-linked on every later one, so a rebuild or a newer
+#      base never moves the CLI backwards. Synchronous: an agent session
+#      started right after `up` must find `claude`.
+#   2. A Chromium for the framework's mockups and design fidelity, on the
+#      /playwright-browsers volume (sdd-workbench-browsers). In the
+#      background: nothing waits on it at start, and it takes a minute.
+#
+# Neither is fatal: a container with no network still starts, says what it
+# could not do, and the next start tries again. Logs: /tmp/sdd-workbench/.
+set -u
+LOG_DIR=/tmp/sdd-workbench
+mkdir -p "$LOG_DIR"
+
+if [ "$(id -u)" = "0" ] && id dev >/dev/null 2>&1; then
+  run_as_dev() { sudo -u dev -H --preserve-env=CLAUDE_CONFIG_DIR,PLAYWRIGHT_BROWSERS_PATH,SDD_PLAYWRIGHT_VERSION,PATH "$@"; }
+else
+  run_as_dev() { "$@"; }
+fi
+
+if [ -z "${SDD_WORKBENCH_SKIP_INIT:-}" ]; then
+  # Bounded: a first start downloads the CLI (about 70 MB), and a network that
+  # stalls must not hold the container's start forever.
+  if ! run_as_dev timeout "${SDD_CLAUDE_INSTALL_TIMEOUT:-900}" \
+       /usr/local/bin/claude-code-ensure >"$LOG_DIR/claude-code.log" 2>&1; then
+    echo "sdd-workbench: Claude Code is not ready (see $LOG_DIR/claude-code.log); the next start tries again" >&2
+  fi
+  if [ -z "${SDD_WORKBENCH_SKIP_BROWSERS:-}" ]; then
+    (run_as_dev /usr/local/bin/sdd-workbench-browsers >"$LOG_DIR/browsers.log" 2>&1 &)
+  fi
+fi
+
+if [ "$#" -eq 0 ]; then
+  set -- sleep infinity
+fi
+exec "$@"
