@@ -34,7 +34,7 @@ echo "== base ${PLATFORM:-native}"
 if ! docker build ${PFLAG[@]+"${PFLAG[@]}"} -q -t "$TAG/base" "$ROOT/base" >/dev/null; then
   echo "FAIL  base did not build"; exit 1
 fi
-docker run --rm ${PFLAG[@]+"${PFLAG[@]}"} --entrypoint bash -v "$HERE:/tests:ro" "$TAG/base" /test/base/test.sh \
+docker run --rm ${PFLAG[@]+"${PFLAG[@]}"} --entrypoint bash -v "$HERE:/tests:ro" "$TAG/base" /tests/base/test.sh \
   || fails=$((fails + 1))
 check_budget base "$TAG/base"
 

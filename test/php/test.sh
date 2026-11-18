@@ -9,6 +9,6 @@ check composer  composer --version
 for ext in curl mbstring xml zip mysqli pdo_mysql pdo_sqlite gd intl xsl soap bcmath redis pcov xdebug; do
   check "ext:$ext" bash -c "php -m | grep -qix '$ext' && echo loaded"
 done
-check xdebug-off bash -c '[ "$(php -r "echo ini_get(\"xdebug.mode\");")" = off ] && echo off'
+check xdebug-off bash -c '[ "$(php -r "echo count(xdebug_info(\"mode\"));")" = 0 ] && echo "no mode on (Xdebug 3 reports off as no modes)"'
 check xdebug-env bash -c '[ "$(XDEBUG_MODE=debug php -r "echo xdebug_info(\"mode\")[0] ?? \"\";")" = debug ] && echo "XDEBUG_MODE=debug turns it on"'
 exit $fail
