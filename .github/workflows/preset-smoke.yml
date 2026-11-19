@@ -1,0 +1,79 @@
+name: preset-smoke
+
+# T6: each preset's composed dev container, built from scratch on both
+# architectures with the dev-container CLI, held to the sum of its parts' size
+# budgets, and used: the framework's gates and every codebase's own tests run
+# inside it (test/preset-smoke.sh).
+#
+# The scaffold repositories are private, so this needs a token that can read
+# them, in the secret SDD_REPOS_READ_TOKEN (a fine-grained token with read
+# access to the framework, scaffold-scripts and laravel-scaffold). Without it
+# every job says so and is skipped. It runs on demand, weekly, and for each
+# release tag, against the refs given (the default branches by default).
+
+on:
+  workflow_dispatch:
+    inputs:
+      framework_ref:
+        description: sdd-framework ref
+        default: master
+      scaffolds_ref:
+        description: scaffold-scripts ref
+        default: main
+      laravel_ref:
+        description: laravel-scaffold ref
+        default: main
+  schedule:
+    - cron: "17 4 * * 1"
+  push:
+    tags: ["v*"]
+
+jobs:
+  t6:
+    strategy:
+      fail-fast: false
+      matrix:
+        preset: [web, web-site, full]
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    env:
+      TOKEN: ${{ secrets.SDD_REPOS_READ_TOKEN }}
+    steps:
+      - name: Without a token, say so
+        if: env.TOKEN == ''
+        run: echo "::notice::SDD_REPOS_READ_TOKEN is not set, so T6 cannot read the private scaffold repositories; skipped."
+      - uses: actions/checkout@v4
+        if: env.TOKEN != ''
+      - uses: actions/checkout@v4
+        if: env.TOKEN != ''
+        with:
+          repository: ali-syria/sdd-framework
+          ref: ${{ inputs.framework_ref || 'master' }}
+          token: ${{ secrets.SDD_REPOS_READ_TOKEN }}
+          path: _deps/framework
+      - uses: actions/checkout@v4
+        if: env.TOKEN != ''
+        with:
+          repository: ali-syria/scaffold-scripts
+          ref: ${{ inputs.scaffolds_ref || 'main' }}
+          token: ${{ secrets.SDD_REPOS_READ_TOKEN }}
+          path: _deps/scaffold-scripts
+      - uses: actions/checkout@v4
+        if: env.TOKEN != ''
+        with:
+          repository: ali-syria/laravel-scaffold
+          ref: ${{ inputs.laravel_ref || 'main' }}
+          token: ${{ secrets.SDD_REPOS_READ_TOKEN }}
+          path: _deps/laravel-scaffold
+      - uses: actions/setup-node@v4
+        if: env.TOKEN != ''
+        with:
+          node-version: "22"
+      - name: T6 (${{ matrix.preset }})
+        if: env.TOKEN != ''
+        env:
+          SDD_FRAMEWORK: ${{ github.workspace }}/_deps/framework
+          SDD_SCAFFOLD_SCRIPTS: ${{ github.workspace }}/_deps/scaffold-scripts
+          LARAVEL_SCAFFOLD_TEMPLATE_DIR: ${{ github.workspace }}/_deps/laravel-scaffold
+        run: test/preset-smoke.sh ${{ matrix.preset }}
