@@ -22,12 +22,15 @@ apt-get install -y --no-install-recommends \
   unzip
 rm -rf /var/lib/apt/lists/*
 
-# Xdebug off by default (F72): it slows every test, and PCOV gives coverage.
+# Xdebug off by default: it slows every test, and PCOV gives coverage.
 # XDEBUG_MODE=debug php artisan … turns it on for one command; when it is on,
-# it finds the IDE on the host that asked (discover_client_host).
+# it connects back to the IDE on the host, and only there. Never
+# discover_client_host (F72): with it a request names the address Xdebug
+# connects to, so any page that reaches a served app could open a debug
+# session to itself.
 cat > "/etc/php/${VERSION}/mods-available/sdd-xdebug.ini" <<INI
 xdebug.mode = ${XDEBUG}
-xdebug.discover_client_host = 1
+xdebug.discover_client_host = 0
 xdebug.client_host = host.docker.internal
 xdebug.start_with_request = trigger
 INI

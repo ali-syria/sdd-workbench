@@ -18,6 +18,7 @@ check user          bash -c '[ "$(id -un)" = dev ] && id'
 check node          node --version
 check npm           npm --version
 check npm-prefix    bash -c '[ "$(npm config get prefix)" = /usr/local/share/npm-global ] && npm config get prefix'
+check login-path    bash -lc 'case ":$PATH:" in *:/usr/local/share/npm-global/bin:*) echo "a login bash keeps the npm globals";; *) exit 1;; esac'
 check python3       python3 --version
 check python-stdlib python3 -c 'import json, sqlite3, ssl, venv; print("stdlib ok")'
 check gh            gh --version
