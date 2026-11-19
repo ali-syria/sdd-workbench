@@ -32,6 +32,18 @@ ENV DEBIAN_FRONTEND=noninteractive \
     DEVCONTAINER=true \
     SDD_WORKBENCH=1
 
+# ─── Downloads that stall fail fast and retry ─────────────────────────
+# Every add-on installs its packages with apt-get on this base while a
+# project's dev container builds, on every machine. On a slow link a single
+# package once stalled for eight minutes and restarted from zero, three
+# builds running (the preset pilot's F-25). A connection idle for 30 seconds
+# is dropped and the download retried, five times.
+RUN printf '%s\n' \
+      'Acquire::Retries "5";' \
+      'Acquire::http::Timeout "30";' \
+      'Acquire::https::Timeout "30";' \
+      > /etc/apt/apt.conf.d/80-sdd-network
+
 # ─── System tools ─────────────────────────────────────────────────────
 RUN apt-get update && apt-get install -y --no-install-recommends \
       ca-certificates curl wget gnupg2 git git-lfs openssh-client \

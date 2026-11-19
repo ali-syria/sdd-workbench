@@ -9,7 +9,7 @@ export DEBIAN_FRONTEND=noninteractive
 apt-get update
 apt-get install -y --no-install-recommends ca-certificates curl gnupg2 lsb-release
 install -d -m 0755 /etc/apt/keyrings
-curl -fsSL https://packages.sury.org/php/apt.gpg -o /etc/apt/keyrings/sury-php.gpg
+curl --retry 5 --retry-all-errors --connect-timeout 20 --speed-limit 1024 --speed-time 60 -fsSL https://packages.sury.org/php/apt.gpg -o /etc/apt/keyrings/sury-php.gpg
 echo "deb [signed-by=/etc/apt/keyrings/sury-php.gpg] https://packages.sury.org/php/ $(lsb_release -sc) main" \
   > /etc/apt/sources.list.d/sury-php.list
 apt-get update
@@ -37,8 +37,8 @@ INI
 ln -sf "/etc/php/${VERSION}/mods-available/sdd-xdebug.ini" "/etc/php/${VERSION}/cli/conf.d/99-sdd-xdebug.ini"
 
 # Composer, checksum-verified against its own published signature.
-expected="$(curl -fsSL https://composer.github.io/installer.sig)"
-curl -fsSL https://getcomposer.org/installer -o /tmp/composer-setup.php
+expected="$(curl --retry 5 --retry-all-errors --connect-timeout 20 --speed-limit 1024 --speed-time 60 -fsSL https://composer.github.io/installer.sig)"
+curl --retry 5 --retry-all-errors --connect-timeout 20 --speed-limit 1024 --speed-time 60 -fsSL https://getcomposer.org/installer -o /tmp/composer-setup.php
 actual="$(php -r "echo hash_file('sha384', '/tmp/composer-setup.php');")"
 if [ "$expected" != "$actual" ]; then
   echo "php add-on: Composer's installer failed its checksum" >&2

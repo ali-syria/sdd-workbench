@@ -20,6 +20,7 @@ check npm           npm --version
 check npm-prefix    bash -c '[ "$(npm config get prefix)" = /usr/local/share/npm-global ] && npm config get prefix'
 check login-path    bash -lc 'case ":$PATH:" in *:/usr/local/share/npm-global/bin:*) echo "a login bash keeps the npm globals";; *) exit 1;; esac'
 check locale        bash -c 'LC_ALL=en_US.UTF-8 bash -c "locale 2>&1" | grep -q "Cannot set" && exit 1; echo "en_US.UTF-8 is generated"'
+check apt-retries   bash -c 'apt-config dump | grep -q "Acquire::Retries \"5\"" && echo "apt retries a stalled download"'
 check python3       python3 --version
 check python-stdlib python3 -c 'import json, sqlite3, ssl, venv; print("stdlib ok")'
 check gh            gh --version

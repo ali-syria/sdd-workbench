@@ -18,7 +18,7 @@ apt-get install -y --no-install-recommends openjdk-17-jre-headless adb socat unz
 rm -rf /var/lib/apt/lists/*
 
 # Maestro, from its GitHub release, at a pinned version.
-curl -fsSL -o /tmp/maestro.zip \
+curl --retry 5 --retry-all-errors --connect-timeout 20 --speed-limit 1024 --speed-time 60 -fsSL -o /tmp/maestro.zip \
   "https://github.com/mobile-dev-inc/Maestro/releases/download/cli-${MAESTRO}/maestro.zip"
 rm -rf /opt/maestro && mkdir -p /opt
 unzip -q /tmp/maestro.zip -d /opt

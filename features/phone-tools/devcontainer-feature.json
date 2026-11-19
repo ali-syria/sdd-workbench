@@ -1,6 +1,6 @@
 {
   "id": "phone-tools",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "name": "Phone tools for the SDD workbench",
   "description": "What the agents need to drive an Android device from the container: a Java runtime, adb, Maestro, and the bridge that reaches your Mac's own adb server (the emulator and any plugged-in Android phone) on its loopback, so the container never starts an adb server of its own.",
   "documentationURL": "https://github.com/ali-syria/sdd-workbench/tree/main/features/phone-tools",
