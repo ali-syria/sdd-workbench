@@ -24,6 +24,14 @@ rm -rf /opt/maestro && mkdir -p /opt
 unzip -q /tmp/maestro.zip -d /opt
 rm /tmp/maestro.zip
 test -x /opt/maestro/bin/maestro
+# containerEnv puts Maestro on PATH; a login shell (bash -l) resets PATH from
+# /etc/profile, so it goes there again for one.
+cat > /etc/profile.d/sdd-phone-tools.sh <<'SH'
+case ":$PATH:" in *":/opt/maestro/bin:"*) ;; *) PATH="/opt/maestro/bin:$PATH" ;; esac
+export PATH
+# Maestro's analytics stay off in any shell, as containerEnv says.
+export MAESTRO_CLI_NO_ANALYTICS=1 MAESTRO_CLI_ANALYSIS_NOTIFICATION_DISABLED=true
+SH
 
 # The bridge, and an adb that makes sure of it before it runs.
 mv /usr/bin/adb /usr/bin/adb.real

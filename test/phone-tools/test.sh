@@ -8,6 +8,7 @@ check java        java -version
 check adb         /usr/bin/adb.real version
 check adb-wrapper bash -c 'grep -q adb-bridge /usr/bin/adb && echo "adb goes through adb-bridge"'
 check adb-bridge  bash -c 'command -v adb-bridge'
-check maestro     bash -c 'PATH=/opt/maestro/bin:$PATH maestro --version'
+check maestro     bash -lc 'maestro --version 2>&1 | grep -v -i analytics'
+check no-analytics bash -lc '[ -n "$MAESTRO_CLI_NO_ANALYTICS" ] && echo "Maestro analytics off"'
 check server-ver  bash -c '/usr/bin/adb.real version | grep -q "Android Debug Bridge version 1.0.41" && echo "server protocol 41"'
 exit $fail

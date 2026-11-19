@@ -24,6 +24,9 @@ ARG PLAYWRIGHT_VERSION=1.65.1
 ARG ZSH_IN_DOCKER_VERSION=1.2.0
 ARG TARGETARCH
 
+# LANG stays C.UTF-8; en_US.UTF-8 is generated too (below), because the
+# dev-container CLI forwards a Mac's LC_ALL=en_US.UTF-8 into every shell,
+# and without it each one warns that it cannot set the locale.
 ENV DEBIAN_FRONTEND=noninteractive \
     LANG=C.UTF-8 \
     DEVCONTAINER=true \
@@ -37,6 +40,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       nano vim-tiny man-db bc \
       libatomic1 \
       python3 \
+      locales \
+ && sed -i 's/^# *\(en_US.UTF-8 UTF-8\)/\1/' /etc/locale.gen \
+ && locale-gen \
  && rm -rf /var/lib/apt/lists/*
 
 # ─── GitHub CLI ───────────────────────────────────────────────────────
