@@ -111,6 +111,14 @@ open(env, "w").write("\n".join(lines) + "\n")
 PY
 
 echo "== $PRESET: build and start the dev container"
+# A build that runs out of Docker's disk fails deep in a post-create step,
+# as ENOSPC from npm (seen 2026-11-19). Say so first instead.
+free_gb="$(docker run --rm alpine:3.20 df -Pk / 2>/dev/null | awk 'NR==2 {printf "%d", $4/1048576}')"
+need_gb="${SDD_T6_MIN_FREE_GB:-5}"
+if [ -n "$free_gb" ] && [ "$free_gb" -lt "$need_gb" ]; then
+  fail "Docker has ${free_gb} GB free and a preset's container needs about ${need_gb}: free some (docker system df), or set SDD_T6_MIN_FREE_GB"
+  exit 1
+fi
 export npm_config_fetch_retries=6 npm_config_fetch_timeout=600000
 # The CLI can miss the container's start event and wait for it forever
 # (seen 2026-11-19). The watchdog stops it only in that state: the container
@@ -183,12 +191,21 @@ for n, c in json.load(open('$P/.sdd-codebases.json'))['codebases'].items():
   if [ -f "$P/$path/artisan" ]; then cmd="cd $path && php artisan test"
   elif [ -f "$P/$path/package.json" ]; then
     # The template's own gates, those it declares, in this order.
+    # e2e only where a channel driver runs in this container; a codebase whose
+    # driver needs a device (the phone's, on the bridge) builds its bundle
+    # instead, which is what the container can prove.
     steps="$(python3 -c "
 import json, sys
 scripts = json.load(open(sys.argv[1])).get('scripts') or {}
+try:
+    drivers = (json.load(open(sys.argv[2])).get('agent_assets') or {}).get('channel_drivers') or []
+except (OSError, ValueError):
+    drivers = []
+here = any(d.get('runs_on', 'container') == 'container' for d in drivers if isinstance(d, dict))
+gates = ['typecheck', 'lint', 'test'] + (['e2e'] if here or not drivers else ['export'])
 print(' && '.join('npm run -s ' + s for s in ('verify',) if s in scripts)
-      or ' && '.join('npm run -s ' + s for s in ('typecheck', 'lint', 'test', 'e2e') if s in scripts))
-" "$P/$path/package.json")"
+      or ' && '.join('npm run -s ' + s for s in gates if s in scripts))
+" "$P/$path/package.json" "$P/$path/.sdd-scaffold.json")"
     [ -n "$steps" ] || { echo "skip  $name: no T1 command known"; continue; }
     cmd="cd $path && $steps"
   else echo "skip  $name: no T1 command known"; continue; fi
